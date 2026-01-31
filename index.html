@@ -40,7 +40,7 @@
             font-size: 5rem; 
             font-weight: 800; 
             letter-spacing: 0.5em; 
-            margin-right: -0.5em; /* Offsets the trailing letter-spacing to center the text perfectly */
+            margin-right: -0.5em; 
             margin-bottom: 0.5rem; 
             line-height: 1;
         }
@@ -53,6 +53,7 @@
             margin-bottom: 4rem; 
             text-transform: uppercase; 
             margin-right: -0.6em;
+            display: block; /* Ensures it stays on its own line */
         }
 
         .google-btn { 
@@ -81,7 +82,6 @@
 
         .status-msg { font-size: 9px; margin-top: 2rem; opacity: 0.3; letter-spacing: 0.2em; text-transform: uppercase; }
         
-        /* Loading Overlay */
         #loading-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 100; display: flex; align-items: center; justify-content: center;
@@ -100,7 +100,7 @@
     <div class="viewport-center">
         <div class="login-card">
             <h1 class="eyro-logo">EYRØ</h1>
-            
+            <span class="sub-tag">Academic Excellence</span>
             
             <button onclick="login()" class="google-btn">
                 <svg width="18" height="18" viewBox="0 0 24 24">
@@ -135,21 +135,19 @@
         const db = getFirestore(app);
         const provider = new GoogleAuthProvider();
 
-        // 1. SET PERSISTENCE TO BROWSER LOCAL
-        // This ensures the user stays logged in even if the tab is closed.
         setPersistence(auth, browserLocalPersistence);
 
-        // 2. AUTH OBSERVER (Check if user is already logged in)
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                console.log("Active Session Found:", user.displayName);
                 localStorage.setItem('eyro_uid', user.uid);
                 localStorage.setItem('eyro_username', user.displayName);
                 window.location.href = 'home.html';
             } else {
-                // No user, hide the loader and show login
-                document.getElementById('loading-overlay').style.opacity = '0';
-                setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 500);
+                const overlay = document.getElementById('loading-overlay');
+                if(overlay) {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.style.display = 'none', 500);
+                }
             }
         });
 
@@ -164,15 +162,16 @@
                 const userRef = doc(db, "users", user.uid);
                 const userDoc = await getDoc(userRef);
 
-                if (!userDoc.exists()) {
-                    await setDoc(userRef, {
-                        username: user.displayName,
-                        email: user.email,
-                        totalHours: 0,
-                        totalPYQ: 0,
-                        createdAt: new Date()
-                    });
-                }
+                // This logic ensures that even if the user exists, we update the 'name' 
+                // and 'username' fields to match their Google display name.
+                await setDoc(userRef, {
+                    name: user.displayName,
+                    username: user.displayName,
+                    email: user.email,
+                    totalHours: userDoc.exists() ? (userDoc.data().totalHours || 0) : 0,
+                    totalPYQ: userDoc.exists() ? (userDoc.data().totalPYQ || 0) : 0,
+                    createdAt: userDoc.exists() ? (userDoc.data().createdAt || new Date()) : new Date()
+                }, { merge: true });
 
                 localStorage.setItem('eyro_uid', user.uid);
                 localStorage.setItem('eyro_username', user.displayName);
