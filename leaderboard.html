@@ -58,9 +58,10 @@
   </div>
 
   <script type="module">
+    // Added writeBatch, getDocs, and setDoc to the imports
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, limit, onSnapshot, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+    import { getFirestore, collection, query, orderBy, limit, onSnapshot, doc, getDoc, updateDoc, setDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAWiHa1wj29wdVWQY6Z9kGtZxxPTK7y2YQ",
@@ -75,30 +76,48 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // Function to let user set their own name
+    // --- MIDNIGHT RESET LOGIC ---
+    async function checkAndResetDailyStats() {
+        const today = new Date().toLocaleDateString(); 
+        const resetRef = doc(db, "system", "lastReset");
+        
+        const resetDoc = await getDoc(resetRef);
+        const lastResetDate = resetDoc.exists() ? resetDoc.data().date : null;
+
+        if (lastResetDate !== today) {
+            const usersSnap = await getDocs(collection(db, "users"));
+            const batch = writeBatch(db);
+
+            usersSnap.forEach((userDoc) => {
+                batch.update(userDoc.ref, {
+                    totalHours: 0,
+                    totalPYQ: 0
+                });
+            });
+
+            batch.set(resetRef, { date: today });
+            await batch.commit();
+            console.log("New Day: Leaderboard Reset.");
+        }
+    }
+
+    // --- SET NAME LOGIC ---
     window.updateMyName = async () => {
       const user = auth.currentUser;
-      if (!user) {
-        alert("Please log in first!");
-        return;
-      }
+      if (!user) { alert("Please log in first!"); return; }
 
       const newName = prompt("Enter your display name (Max 15 chars):");
       if (newName && newName.trim().length > 0) {
         const truncatedName = newName.substring(0, 15);
         try {
           const userRef = doc(db, "users", user.uid);
-          await updateDoc(userRef, { 
-            username: truncatedName 
-          });
-          alert("Name updated! It might take a second to sync.");
-        } catch (e) {
-          console.error("Error updating name:", e);
-          alert("Could not update name.");
-        }
+          await updateDoc(userRef, { username: truncatedName });
+          alert("Name updated!");
+        } catch (e) { alert("Error updating name."); }
       }
     };
 
+    // --- DISPLAY LOGIC ---
     window.loadLeaderboard = (field, unit) => {
       const isHours = field === 'totalHours';
       document.getElementById('btn-hours').className = `px-6 py-2 rounded-lg text-[9px] font-black tracking-widest transition-all ${isHours ? 'active-tab' : 'text-zinc-500'}`;
@@ -114,7 +133,6 @@
         snapshot.docs.forEach((doc, index) => {
           const data = doc.data();
           const val = data[field] || 0;
-          // Use username first, then fallback to name, then PILOT
           const displayName = data.username || data.name || "PILOT";
           
           const row = document.createElement('tr');
@@ -141,6 +159,8 @@
         document.getElementById('reset-timer').innerText = `Reset in: ${h}h ${m}m ${s}s`;
     }
 
+    // Run Reset Check and Load
+    checkAndResetDailyStats();
     loadLeaderboard('totalHours', 'h');
     setInterval(updateTimer, 1000);
   </script>
