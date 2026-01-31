@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EYRØ • Community</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;500;800&display=swap" rel="stylesheet">
+  <style>
+    body { background: #000; color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    
+    /* Brand Styling */
+    .brand { font-weight: 800; letter-spacing: 0.5em; text-transform: uppercase; margin-right: -0.5em; }
+    
+    /* Message Bubble Styling */
+    .msg-card { 
+        background: rgba(255, 255, 255, 0.03); 
+        border: 1px solid rgba(255, 255, 255, 0.07); 
+        border-radius: 1.25rem; 
+        padding: 1.25rem; 
+        transition: 0.3s;
+        max-width: 85%;
+    }
+    .my-msg { 
+        background: rgba(255, 255, 255, 0.08); 
+        border-color: rgba(255, 255, 255, 0.2); 
+        align-self: flex-end;
+    }
+    .other-msg { align-self: flex-start; }
+
+    /* Custom Scrollbar */
+    #chat-scroll::-webkit-scrollbar { width: 5px; }
+    #chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    #chat-scroll::-webkit-scrollbar-thumb { background: #222; border-radius: 5px; }
+    #chat-scroll::-webkit-scrollbar-thumb:hover { background: #333; }
+
+    /* Input Focus Effects */
+    .input-glow:focus-within {
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+    }
+
+    /* Animations */
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-msg { animation: slideIn 0.3s ease forwards; }
+  </style>
+</head>
+<body>
+
+  <header class="p-6 border-b border-white/5 flex justify-between items-center bg-black/80 backdrop-blur-xl z-20">
+    <div class="flex flex-col">
+        <a href="home.html" class="brand text-2xl">EYRØ</a>
+        <span class="text-[8px] tracking-[0.4em] text-white/30 uppercase mt-1">Community Relay • Sector 12</span>
+    </div>
+    <div class="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+        <div class="flex flex-col items-end">
+            <span id="active-user" class="text-[10px] font-bold tracking-widest text-white/80"></span>
+            <span class="text-[8px] text-green-500 font-bold tracking-tighter uppercase">Online</span>
+        </div>
+        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+    </div>
+  </header>
+
+  <main id="chat-scroll" class="flex-1 overflow-y-auto px-4 py-8">
+    <div id="messages-container" class="max-w-4xl mx-auto flex flex-col gap-6">
+      <div class="flex justify-center py-10">
+          <p class="text-[10px] text-white/20 tracking-[0.5em] uppercase animate-pulse">Establishing Secure Connection</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="p-6 bg-gradient-to-t from-black via-black to-transparent">
+    <div class="max-w-4xl mx-auto">
+      <div class="flex items-center gap-4 bg-white/5 border border-white/10 p-2 pl-6 rounded-2xl input-glow transition-all duration-500">
+        <input id="chat-input" 
+               autocomplete="off" 
+               class="bg-transparent flex-1 outline-none text-sm py-3 text-white placeholder:text-white/20" 
+               placeholder="Share resources or ask a doubt..." />
+        
+        <button id="send-btn" class="bg-white text-black h-12 px-8 rounded-xl font-black text-[10px] tracking-[0.2em] hover:bg-zinc-200 active:scale-95 transition-all">
+            SEND
+        </button>
+      </div>
+      <p class="text-center text-[8px] text-white/10 mt-4 tracking-widest uppercase">Encrypted End-to-End • Boards 2026</p>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWiHa1wj29wdVWQY6Z9kGtZxxPTK7y2YQ",
+      authDomain: "eyro-87bf7.firebaseapp.com",
+      projectId: "eyro-87bf7",
+      storageBucket: "eyro-87bf7.firebasestorage.app",
+      messagingSenderId: "816390552938",
+      appId: "1:816390552938:web:07ea350f7aaaf34c5af913"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Retrieve the Google Display Name
+    const userName = localStorage.getItem('eyro_username') || 'PILOT';
+    document.getElementById('active-user').innerText = userName.toUpperCase();
+
+    // Setup Real-time Listener
+    const q = query(collection(db, "messages"), orderBy("createdAt", "asc"), limit(100));
+    
+    onSnapshot(q, (snapshot) => {
+      const container = document.getElementById('messages-container');
+      container.innerHTML = ''; 
+      
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if(!data.text) return;
+
+        const isMe = data.user === userName;
+        
+        // Format time
+        const time = data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
+
+        const div = document.createElement('div');
+        div.className = `msg-card ${isMe ? 'my-msg' : 'other-msg'} animate-msg`;
+        
+        div.innerHTML = `
+          <div class="flex justify-between items-center gap-8 mb-2">
+            <span class="text-[9px] font-black ${isMe ? 'text-white/90' : 'text-white/40'} uppercase tracking-[0.2em]">
+                ${data.user} ${isMe ? '(YOU)' : ''}
+            </span>
+            <span class="text-[8px] text-white/20 font-medium">${time}</span>
+          </div>
+          <p class="text-[14px] text-white/80 leading-relaxed font-light">${data.text}</p>
+        `;
+        container.appendChild(div);
+      });
+      
+      scrollToBottom();
+    });
+
+    function scrollToBottom() {
+      const scrollArea = document.getElementById('chat-scroll');
+      scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' });
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      
+      if (!text) return;
+
+      try {
+        await addDoc(collection(db, "messages"), {
+          text: text,
+          user: userName,
+          createdAt: serverTimestamp()
+        });
+        input.value = '';
+      } catch (err) {
+        console.error("Transmission Error:", err);
+      }
+    }
+
+    // Controls
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('chat-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EYRØ • Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #050505; color: white; font-family: 'Inter', sans-serif; }
+    .brand { font-weight: 900; letter-spacing: 0.5em; text-transform: uppercase; }
+  </style>
+</head>
+<body class="p-6 md:p-12 flex flex-col min-h-screen">
+  <nav class="flex justify-between items-center mb-16">
+    <a href="home.html" class="brand text-xl">EYRØ</a>
+    <a href="home.html" class="text-[10px] uppercase tracking-widest text-zinc-500">Back</a>
+  </nav>
+
+  <main class="flex-1 flex flex-col items-center justify-center">
+    <div class="bg-zinc-900/20 border border-zinc-800 p-10 md:p-16 w-full max-w-2xl text-center rounded-[3rem]">
+      <div id="display" class="text-7xl md:text-9xl font-black mb-12 tabular-nums">00:00:00</div>
+      
+      <div class="flex gap-4 justify-center mb-12">
+        <button id="startStop" onclick="toggleTimer()" class="bg-white text-black px-12 py-4 rounded-2xl font-black text-xs tracking-widest">START SESSION</button>
+        <button onclick="resetTimer()" class="px-8 py-4 border border-zinc-800 rounded-2xl font-bold text-xs text-zinc-500">RESET</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="bg-black/50 p-4 rounded-2xl border border-zinc-900">
+          <p class="text-[9px] text-zinc-600 uppercase font-black mb-2">Physics</p>
+          <input type="number" id="p-pyq" placeholder="0" class="bg-transparent text-center w-full text-xl font-bold outline-none">
+        </div>
+        <div class="bg-black/50 p-4 rounded-2xl border border-zinc-900">
+          <p class="text-[9px] text-zinc-600 uppercase font-black mb-2">Chemistry</p>
+          <input type="number" id="c-pyq" placeholder="0" class="bg-transparent text-center w-full text-xl font-bold outline-none">
+        </div>
+        <div class="bg-black/50 p-4 rounded-2xl border border-zinc-900">
+          <p class="text-[9px] text-zinc-600 uppercase font-black mb-2">Math</p>
+          <input type="number" id="m-pyq" placeholder="0" class="bg-transparent text-center w-full text-xl font-bold outline-none">
+        </div>
+      </div>
+
+      <button onclick="saveSession()" class="w-full py-5 bg-zinc-900 border border-zinc-800 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-zinc-800 transition">SYNC DATA</button>
+    </div>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, increment } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWiHa1wj29wdVWQY6Z9kGtZxxPTK7y2YQ",
+      authDomain: "eyro-87bf7.firebaseapp.com",
+      projectId: "eyro-87bf7",
+      storageBucket: "eyro-87bf7.firebasestorage.app",
+      messagingSenderId: "816390552938",
+      appId: "1:816390552938:web:07ea350f7aaaf34c5af913"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let seconds = 0;
+    let timerInterval = null;
+    let isRunning = false;
+
+    window.toggleTimer = () => {
+      if (!isRunning) {
+        isRunning = true;
+        document.getElementById('startStop').innerText = "STOP";
+        timerInterval = setInterval(() => { seconds++; updateDisplay(); }, 1000);
+      } else {
+        isRunning = false;
+        document.getElementById('startStop').innerText = "START SESSION";
+        clearInterval(timerInterval);
+      }
+    };
+
+    window.resetTimer = () => { isRunning = false; clearInterval(timerInterval); seconds = 0; updateDisplay(); document.getElementById('startStop').innerText = "START SESSION"; };
+
+    function updateDisplay() {
+      const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+      const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      document.getElementById('display').innerText = `${h}:${m}:${s}`;
+    }
+
+    window.saveSession = async () => {
+      const uid = localStorage.getItem('eyro_uid');
+      const name = localStorage.getItem('eyro_name');
+      const p = Number(document.getElementById('p-pyq').value) || 0;
+      const c = Number(document.getElementById('c-pyq').value) || 0;
+      const m = Number(document.getElementById('m-pyq').value) || 0;
+
+      if(!uid) return alert("User not found!");
+
+      try {
+          await setDoc(doc(db, "users", uid), {
+            name: name,
+            totalHours: increment(seconds / 3600),
+            totalPYQ: increment(p + c + m),
+            physicsPYQ: increment(p),
+            chemistryPYQ: increment(c),
+            mathPYQ: increment(m)
+          }, { merge: true });
+          alert("Session Saved!");
+          resetTimer();
+          document.getElementById('p-pyq').value = '';
+          document.getElementById('c-pyq').value = '';
+          document.getElementById('m-pyq').value = '';
+      } catch (e) { alert("Error: " + e.message); }
+    };
+  </script>
+</body>
+</html>
