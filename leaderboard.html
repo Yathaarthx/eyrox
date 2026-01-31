@@ -7,26 +7,34 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;500;800&display=swap" rel="stylesheet">
   <style>
-    body { background: #000; color: white; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #000; color: white; font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; overflow-x: hidden; }
     .brand { font-weight: 800; letter-spacing: 0.5em; text-transform: uppercase; margin-right: -0.5em; }
     .glass-card { background: rgba(15, 15, 15, 0.6); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); }
     .active-tab { background: white !important; color: black !important; }
+    .btn-action { border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s ease; }
+    .btn-action:hover { background: white; color: black; border-color: white; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .rank-row { animation: fadeIn 0.4s ease forwards; }
   </style>
 </head>
 <body class="p-6 md:p-12 min-h-screen">
+
   <div class="max-w-4xl mx-auto">
-    
-    <nav class="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+    <nav class="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
       <div class="flex flex-col">
-          <a href="home.html" class="brand text-2xl">EYRØ</a>
+          <a href="home.html" class="brand text-2xl" style="text-decoration: none; color: inherit;">EYRØ</a>
           <span class="text-[8px] tracking-[0.4em] text-white/30 uppercase mt-1">Sector: Daily Competitive Relay</span>
       </div>
       
-      <div class="flex bg-zinc-900/50 p-1.5 rounded-2xl border border-white/5">
-        <button onclick="loadLeaderboard('totalHours', 'h')" id="btn-hours" class="px-8 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all duration-300 active-tab">TIME</button>
-        <button onclick="loadLeaderboard('totalPYQ', ' PYQs')" id="btn-pyq" class="px-8 py-2.5 rounded-xl text-[10px] font-black tracking-widest text-zinc-500 transition-all duration-300">PYQs</button>
+      <div class="flex items-center gap-4">
+        <button onclick="updateMyName()" class="btn-action px-5 py-2 rounded-full text-[9px] font-bold tracking-widest uppercase">
+          Set My Name
+        </button>
+
+        <div class="flex bg-zinc-900/50 p-1 rounded-xl border border-white/5">
+          <button onclick="loadLeaderboard('totalHours', 'h')" id="btn-hours" class="px-6 py-2 rounded-lg text-[9px] font-black tracking-widest active-tab">TIME</button>
+          <button onclick="loadLeaderboard('totalPYQ', ' PYQs')" id="btn-pyq" class="px-6 py-2 rounded-lg text-[9px] font-black tracking-widest text-zinc-500">PYQs</button>
+        </div>
       </div>
     </nav>
 
@@ -34,7 +42,7 @@
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="text-[9px] uppercase tracking-[0.3em] text-white/20 border-b border-white/5 bg-white/[0.02]">
-            <th class="px-8 py-6">Rank</th>
+            <th class="px-8 py-6 w-24">Rank</th>
             <th class="px-8 py-6">Student</th>
             <th id="stat-label" class="px-8 py-6 text-right">Focus Hours</th>
           </tr>
@@ -44,14 +52,15 @@
     </div>
 
     <div class="mt-8 flex justify-between items-center px-4">
-        <p class="text-[9px] text-white/20 tracking-widest uppercase">Resets every 24 hours</p>
-        <div id="reset-timer" class="text-[9px] text-white/40 tracking-widest font-bold uppercase">Refreshing Relay...</div>
+        <p class="text-[9px] text-white/20 tracking-widest uppercase">Resets Daily at Midnight</p>
+        <div id="reset-timer" class="text-[9px] text-white/40 tracking-widest font-black uppercase italic">Syncing...</div>
     </div>
   </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, limit, onSnapshot, doc, getDoc, setDoc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import { getFirestore, collection, query, orderBy, limit, onSnapshot, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAWiHa1wj29wdVWQY6Z9kGtZxxPTK7y2YQ",
@@ -64,40 +73,39 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
 
-    // --- MIDNIGHT RESET LOGIC ---
-    async function checkDailyReset() {
-        const today = new Date().toLocaleDateString();
-        const systemRef = doc(db, "system", "resetState");
-        
+    // Function to let user set their own name
+    window.updateMyName = async () => {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Please log in first!");
+        return;
+      }
+
+      const newName = prompt("Enter your display name (Max 15 chars):");
+      if (newName && newName.trim().length > 0) {
+        const truncatedName = newName.substring(0, 15);
         try {
-            const systemDoc = await getDoc(systemRef);
-            const lastReset = systemDoc.exists() ? systemDoc.data().lastResetDate : "";
+          const userRef = doc(db, "users", user.uid);
+          await updateDoc(userRef, { 
+            username: truncatedName 
+          });
+          alert("Name updated! It might take a second to sync.");
+        } catch (e) {
+          console.error("Error updating name:", e);
+          alert("Could not update name.");
+        }
+      }
+    };
 
-            if (lastReset !== "" && lastReset !== today) {
-                const batch = writeBatch(db);
-                const usersSnap = await getDocs(collection(db, "users"));
-                
-                usersSnap.forEach(userDoc => {
-                    batch.update(userDoc.ref, { totalHours: 0, totalPYQ: 0 });
-                });
-
-                batch.set(systemRef, { lastResetDate: today });
-                await batch.commit();
-            } else if (!systemDoc.exists()) {
-                await setDoc(systemRef, { lastResetDate: today });
-            }
-        } catch (e) { console.error("Reset Error:", e); }
-    }
-
-    // --- DATA DISPLAY LOGIC ---
     window.loadLeaderboard = (field, unit) => {
       const isHours = field === 'totalHours';
-      document.getElementById('btn-hours').className = `px-8 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${isHours ? 'active-tab' : 'text-zinc-500'}`;
-      document.getElementById('btn-pyq').className = `px-8 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${!isHours ? 'active-tab' : 'text-zinc-500'}`;
+      document.getElementById('btn-hours').className = `px-6 py-2 rounded-lg text-[9px] font-black tracking-widest transition-all ${isHours ? 'active-tab' : 'text-zinc-500'}`;
+      document.getElementById('btn-pyq').className = `px-6 py-2 rounded-lg text-[9px] font-black tracking-widest transition-all ${!isHours ? 'active-tab' : 'text-zinc-500'}`;
       document.getElementById('stat-label').innerText = isHours ? 'Focus Hours' : 'PYQs Solved';
 
-      const q = query(collection(db, "users"), orderBy(field, "desc"), limit(20));
+      const q = query(collection(db, "users"), orderBy(field, "desc"), limit(15));
       
       onSnapshot(q, (snapshot) => {
         const tbody = document.getElementById('leaderboard-body');
@@ -106,15 +114,14 @@
         snapshot.docs.forEach((doc, index) => {
           const data = doc.data();
           const val = data[field] || 0;
-          
-          // FIX: Check multiple name fields in case of different save formats
-          const name = data.username || data.name || data.displayName || "Anonymous Pilot";
+          // Use username first, then fallback to name, then PILOT
+          const displayName = data.username || data.name || "PILOT";
           
           const row = document.createElement('tr');
-          row.className = "rank-row border-b border-white/[0.03] hover:bg-white/[0.02] transition-all";
+          row.className = "rank-row border-b border-white/[0.03] hover:bg-white/[0.02]";
           row.innerHTML = `
               <td class="px-8 py-6 text-white/20 font-bold text-xs italic">#${(index + 1).toString().padStart(2, '0')}</td>
-              <td class="px-8 py-6 font-medium text-sm tracking-tight text-white/90">${name}</td>
+              <td class="px-8 py-6 font-medium text-sm tracking-tight text-white/90 uppercase">${displayName}</td>
               <td class="px-8 py-6 text-right font-black text-white tracking-wider">
                 ${isHours ? val.toFixed(1) : val}<span class="text-[10px] ml-1 opacity-30">${unit}</span>
               </td>
@@ -125,17 +132,15 @@
     };
 
     function updateTimer() {
-        const now = new Date();
         const nextMidnight = new Date();
         nextMidnight.setHours(24, 0, 0, 0);
-        const diff = nextMidnight - now;
+        const diff = nextMidnight - new Date();
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
         document.getElementById('reset-timer').innerText = `Reset in: ${h}h ${m}m ${s}s`;
     }
 
-    checkDailyReset();
     loadLeaderboard('totalHours', 'h');
     setInterval(updateTimer, 1000);
   </script>
